@@ -1,12 +1,13 @@
 import TelegramBot from 'node-telegram-bot-api';
 import axios from 'axios';
+import NodeCache from "node-cache";
 
-const apiKey = 'uLVfiW79ttPib_OPp7uHwhINGi14djDGvu3imn9TX-I0';
-const url = 'https://api.monobank.ua/bank/currency';
-
-const token = '6314201256:AAHhdplO6rhEhr3kVw-Ao_3rkz_M2eoWsPg';
-
+const token = 'YOUR_BOT_TOKEN';
+const cache = new NodeCache();
 const bot = new TelegramBot(token, {polling: true});
+
+const apiPrivat = 'https://api.privatbank.ua/p24api/pubinfo?exchange&coursid=5'; 
+const apiMono = 'https://api.monobank.ua/bank/currency'                       ; 
 
 const keyboard = {
     reply_markup: {
@@ -18,57 +19,61 @@ const keyboard = {
     },
 };
 
-const exitKeyboard = {
-    reply_markup: {
-        keyboard: [
-            [{ text: 'Previous menu' }]
-        ],
-        resize_keyboard: true,
-    },
-};
-
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     bot.sendMessage(chatId, 'For start choose options:', keyboard);
 });
 
-bot.onText(/USD/, (msg) => {
+bot.onText(/USD/, async (msg) => {
     const chatId = msg.chat.id;
-    axios.get(url, {
-        headers: {
-          'X-Token': apiKey,
-        },
-      })
-      .then((response) => {
-        const currencyData = response.data;
-        const message = `Monobank Exchange Rates:\nBuy ${currencyData[0].rateBuy}, Sell ${currencyData[0].rateSell}\n`;
-      
-        bot.sendMessage(chatId, message, exitKeyboard);
-      })
-      .catch((error) => {
-        console.error('Помилка при запиті до Monobank API', error);
-      });
+
+    try {
+        let currencyDataPrivat = cache.get('currencyDataPrivat'); 
+        let currencyDataMono = cache.get('currencyDataMono');
+        if (!currencyDataPrivat) {
+            const responsePrivat = await axios.get(apiPrivat);
+            currencyDataPrivat = responsePrivat.data;
+            cache.set('currencyDataPrivat', currencyDataPrivat, 300);
+        }
+        if (!currencyDataMono) {
+            const responseMono = await axios.get(apiMono);
+            currencyDataMono = responseMono.data;
+            cache.set('currencyDataMono', currencyDataMono, 400);
+        }
+
+        const selectedMonoEur = currencyDataMono.find(mono => mono.currencyCodeA === 840);// ISO code for EUR
+        const selectedPrivat = currencyDataPrivat.find(currency => currency.ccy === 'USD');
+
+        const message = `Monobank Rates:\nBuy: ${selectedMonoEur.rateBuy}, Sell: ${selectedMonoEur.rateSell}\nPrivatBank Rates:\nBuy: ${selectedPrivat.buy}, Sell: ${selectedPrivat.sale}`;
+        bot.sendMessage(chatId, message);
+    } catch (error) {
+        console.error('Error fetching exchange rates:', error);
+    }
 });
 
-bot.onText(/EUR/, (msg) => {
+bot.onText(/EUR/, async (msg) => {
     const chatId = msg.chat.id;
-    axios.get(url, {
-        headers: {
-          'X-Token': apiKey,
-        },
-      })
-      .then((response) => {
-        const currencyData = response.data;
-        const message = `Monobank Exchange Rates:\nBuy ${currencyData[1].rateBuy}, Sell ${currencyData[1].rateSell}\n`;
-      
-        bot.sendMessage(chatId, message, exitKeyboard);
-      })
-      .catch((error) => {
-        console.error('Помилка при запиті до Monobank API', error);
-      });
-});
 
-bot.onText(/Previous menu/, (msg) => {
-    const chatId = msg.chat.id;
-    bot.sendMessage(chatId, 'For start choose options:', keyboard);
+    try {
+        let currencyDataPrivat = cache.get('currencyDataPrivat'); 
+        let currencyDataMono = cache.get('currencyDataMono');
+        if (!currencyDataPrivat) {
+            const responsePrivat = await axios.get(apiPrivat);
+            currencyDataPrivat = responsePrivat.data;
+            cache.set('currencyDataPrivat', currencyDataPrivat, 300);
+        }
+        if (!currencyDataMono) {
+            const responseMono = await axios.get(apiMono);
+            currencyDataMono = responseMono.data;
+            cache.set('currencyDataMono', currencyDataMono, 400);
+        }
+
+        const selectedMonoEur = currencyDataMono.find(mono => mono.currencyCodeA === 978);// ISO code for EUR
+        const selectedPrivat = currencyDataPrivat.find(currency => currency.ccy === 'EUR');
+
+        const message = `Monobank Rates:\nBuy: ${selectedMonoEur.rateBuy}, Sell: ${selectedMonoEur.rateSell}\nPrivatBank Rates:\nBuy: ${selectedPrivat.buy}, Sell: ${selectedPrivat.sale}`;
+        bot.sendMessage(chatId, message);
+    } catch (error) {
+        console.error('Error fetching exchange rates:', error);
+    }
 });
